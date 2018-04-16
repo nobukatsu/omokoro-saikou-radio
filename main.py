@@ -26,8 +26,7 @@ def main():
         print("ERROR: Access token is invalid.")
         sys.exit(1)
 
-    # TODO Delete comment out
-    # get_feed_xml_file(dbx)
+    get_feed_xml_file(dbx)
     check_result = check_new_episode()
     if not check_result:
         print("No new episode.")
