@@ -1,7 +1,9 @@
 import sys
 import os
+from datetime import datetime, timedelta, timezone
 import dropbox
 from dropbox.exceptions import AuthError
+from dropbox.files import WriteMode
 import requests
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as eT
@@ -35,16 +37,19 @@ def main():
 
     update_local_feed(check_result)
 
-    upload()
+    upload_to_dropbox(dbx)
 
     print("Done.")
 
 
 def get_feed_file_from_dropbox(dbx):
+    print("Downloading feed file from Dropbox ...")
     dbx.files_download_to_file(LOCAL_FEED_FILE, REMOTE_FEED_FILE)
 
 
 def check_new_episode():
+    print("Check for new episode ...")
+
     res = requests.get(TOP_URL)
     soup = BeautifulSoup(res.text, "lxml")
 
@@ -53,7 +58,7 @@ def check_new_episode():
     local_episode_title = get_local_latest_title()
 
     if latest_episode_title == local_episode_title:
-        return False
+        return None
     else:
         print("New episode found.")
         return latest_episode
@@ -65,17 +70,34 @@ def get_local_latest_title():
 
 
 def update_local_feed(episode):
-    title = episode.find("span", class_="title").string
-    content_url = episode.find("span", class_="title").find("a")["href"]
-    description = episode.find("span", class_="lead").string
+    print("Updating feed file ...")
 
-    file_url, file_size = get_file_info(content_url)
+    episode_title = episode.find("span", class_="title").string
+    content_page_url = episode.find("span", class_="title").find("a")["href"]
+    episode_description = episode.find("span", class_="lead").string
+    file_url, file_size = get_file_info(content_page_url)
 
-    print("title:" + title)
-    print("url:" + content_url)
-    print("description:" + description)
-    print("file_url:" + file_url)
-    print("file_size:" + file_size)
+    root_tree = eT.parse(LOCAL_FEED_FILE)
+    channel = root_tree.getroot().find("channel")
+
+    # Contract item element
+    item = eT.Element("item")
+    title = eT.SubElement(item, "title")
+    title.text = episode_title
+    description = eT.SubElement(item, "description")
+    description.text = episode_description
+    pub_date = eT.SubElement(item, "pubDate")
+    pub_date.text = f"{datetime.now(timezone(timedelta(hours=+9), 'JST')):%a, %d %b %Y %H:%M:%S %z}"
+    link = eT.SubElement(item, "link")
+    link.text = content_page_url
+    enclosure = eT.SubElement(item, "enclosure")
+    enclosure.set("length", file_size)
+    enclosure.set("type", "audio/mpeg")
+    enclosure.set("url", file_url)
+
+    # Make item element be top of the item list
+    channel.insert(16, item)
+    root_tree.write(LOCAL_FEED_FILE, encoding="UTF-8")
 
 
 def get_file_info(content_url):
@@ -94,7 +116,7 @@ def get_file_info(content_url):
     try:
         completed_process = subprocess.run(cmd, stdout=subprocess.PIPE, check=True, shell=True)
         if completed_process.returncode is 0:
-            file_size = completed_process.stdout.decode("UTF-8")
+            file_size = completed_process.stdout.decode("UTF-8").strip()
 
     except subprocess.CalledProcessError:
         print("ERROR: Getting file size failed")
@@ -103,8 +125,10 @@ def get_file_info(content_url):
     return file_url, file_size
 
 
-def upload():
-    pass
+def upload_to_dropbox(dbx):
+    with open(LOCAL_FEED_FILE, "rb") as f:
+        print("Uploading feed file to Dropbox ...")
+        dbx.files_upload(f.read(), REMOTE_FEED_FILE, mode=WriteMode("overwrite"))
 
 
 if __name__ == "__main__":
