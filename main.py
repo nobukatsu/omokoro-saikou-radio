@@ -1,4 +1,3 @@
-import sys
 import os
 from datetime import datetime, timedelta, timezone
 import dropbox
@@ -19,7 +18,7 @@ def main():
     # Check access token
     if ACCESS_TOKEN_KEY not in os.environ or not os.environ[ACCESS_TOKEN_KEY]:
         print("ERROR: ACCESS_TOKEN is empty. ")
-        sys.exit(1)
+        return 1
 
     dbx = dropbox.Dropbox(os.environ[ACCESS_TOKEN_KEY])
 
@@ -27,19 +26,17 @@ def main():
         dbx.users_get_current_account()
     except AuthError:
         print("ERROR: Access token is invalid.")
-        sys.exit(1)
+        return 1
 
     get_feed_file_from_dropbox(dbx)
     check_result = check_new_episode()
     if not check_result:
         print("No new episode.")
-        sys.exit(0)
+        return 0
 
     update_local_feed(check_result)
 
     upload_to_dropbox(dbx)
-
-    print("Done.")
 
 
 def get_feed_file_from_dropbox(dbx):
@@ -120,7 +117,6 @@ def get_file_info(content_url):
 
     except subprocess.CalledProcessError:
         print("ERROR: Getting file size failed")
-        sys.exit(1)
 
     return file_url, file_size
 
@@ -132,4 +128,6 @@ def upload_to_dropbox(dbx):
 
 
 if __name__ == "__main__":
+    print("### Start")
     main()
+    print("### End")
