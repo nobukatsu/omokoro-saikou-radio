@@ -4,11 +4,12 @@ import dropbox
 from dropbox.exceptions import AuthError
 import requests
 from bs4 import BeautifulSoup
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as eT
+import subprocess
 
 ACCESS_TOKEN_KEY = "DROPBOX_ACCESS_TOKEN"
-REMOTE_FEED_FILE = "/saikou-radio.xml"
-LOCAL_FEED_FILE = "./saikou-radio.xml"
+REMOTE_FEED_FILE = "/feed.xml"
+LOCAL_FEED_FILE = "./feed.xml"
 TOP_URL = "https://omocoro.jp/tag/最高ラジオ"
 
 
@@ -26,7 +27,7 @@ def main():
         print("ERROR: Access token is invalid.")
         sys.exit(1)
 
-    get_feed_xml_file(dbx)
+    get_feed_file_from_dropbox(dbx)
     check_result = check_new_episode()
     if not check_result:
         print("No new episode.")
@@ -39,7 +40,7 @@ def main():
     print("Done.")
 
 
-def get_feed_xml_file(dbx):
+def get_feed_file_from_dropbox(dbx):
     dbx.files_download_to_file(LOCAL_FEED_FILE, REMOTE_FEED_FILE)
 
 
@@ -59,7 +60,7 @@ def check_new_episode():
 
 
 def get_local_latest_title():
-    root = ET.parse(LOCAL_FEED_FILE).getroot()
+    root = eT.parse(LOCAL_FEED_FILE).getroot()
     return root.find("channel").find("item").find("title").text
 
 
@@ -83,13 +84,23 @@ def get_file_info(content_url):
     article = soup.find("div", class_="article-body")
 
     file_url = ""
-
     for a in article.find_all("a"):
         if "ダウンロードはこちらから" in a.string:
             file_url = a["href"]
             break
 
-    return file_url, "xxx"
+    cmd = 'curl -Is ' + file_url + ' | grep -i "content-length" | cut -c 17-'
+    file_size = 0
+    try:
+        completed_process = subprocess.run(cmd, stdout=subprocess.PIPE, check=True, shell=True)
+        if completed_process.returncode is 0:
+            file_size = completed_process.stdout.decode("UTF-8")
+
+    except subprocess.CalledProcessError:
+        print("ERROR: Getting file size failed")
+        sys.exit(1)
+
+    return file_url, file_size
 
 
 def upload():
