@@ -15,6 +15,7 @@ TOP_URL = "https://omocoro.jp/tag/最高ラジオ"
 
 
 def main():
+    print("### Start")
     # Check access token
     if ACCESS_TOKEN_KEY not in os.environ or not os.environ[ACCESS_TOKEN_KEY]:
         print("ERROR: ACCESS_TOKEN is empty. ")
@@ -32,11 +33,13 @@ def main():
     check_result = check_new_episode()
     if not check_result:
         print("No new episode.")
+        print("### End")
         return 0
 
     update_local_feed(check_result)
 
     upload_to_dropbox(dbx)
+    print("### End")
 
 
 def get_feed_file_from_dropbox(dbx):
@@ -128,6 +131,4 @@ def upload_to_dropbox(dbx):
 
 
 if __name__ == "__main__":
-    print("### Start")
     main()
-    print("### End")
